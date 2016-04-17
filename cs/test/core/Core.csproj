@@ -52,6 +52,11 @@
     <Compile Include="TypeAliasTests.cs" />
     <Compile Include="ProtocolTests.cs" />
     <Compile Include="Util.cs" />
+    <Compile Include="XapBondedStuff\PluginData.cs" />
+    <Compile Include="XapBondedStuff\tests\Helper.cs" />
+    <Compile Include="XapBondedStuff\tests\XapBondedTests.cs" />
+    <Compile Include="XapBondedStuff\XapBonded.cs" />
+    <Compile Include="XapBondedStuff\XapBondedImpl.cs" />
     <Compile Include="XmlTests.cs" />
     <BondCodegen Include="Aliases.bond">
       <Options Condition="'$(TargetFrameworkVersion)' == 'v4.5'">$(BondOptions) --using="Lazy=Lazy&lt;{0}&gt;" --using="OrderedSet=SortedSet&lt;{0}&gt;" --using="Decimal=decimal" --using="EnumString=Alias.EnumString&lt;{0}&gt;" --using="Array={0}[]" --using=ArrayBlob=byte[] --using="SynchronizedList=SynchronizedCollection&lt;{0}&gt;"</Options>

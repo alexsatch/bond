@@ -1,37 +1,25 @@
 namespace UnitTest.XapBondedStuff
 {
     using System;
-    using System.Linq.Expressions;
-    using System.Reflection;
-    using System.Runtime.CompilerServices;
+    using System.Diagnostics;
+
     using Bond;
-    using Bond.Expressions;
 
     public interface IXapReadonly
     {
         void SetReadonly();
     }
 
-    internal interface IXapBonded<out T> : IBonded<T>
-    {
-        T GhostValue();
-    }
-
-    internal class XapBondedLocal<TActual> : XapBonded<TActual>, IXapBonded<TActual>
+    internal class XapBondedLocal<TActual> : IBonded<TActual>
     {
         private readonly TActual instance;
 
         /// <summary>
         /// No polymorphism here
         /// </summary>
-        public XapBondedLocal(TActual value)
+        private XapBondedLocal(TActual value)
         {
             this.instance = value;
-        }
-
-        public TActual GhostValue()
-        {
-            return instance;
         }
 
         public TActual Deserialize()
@@ -49,51 +37,42 @@ namespace UnitTest.XapBondedStuff
             return Facade.Cloner<TActual, T>().Clone<T>(instance);
         }
 
-        public new IXapBonded<U> Convert<U>()
+        public IBonded<U> Convert<U>()
         {
-            return this as IXapBonded<U>;
+            return this as IBonded<U>;
         }
+
         IBonded<U> IBonded.Convert<U>()
         {
             return this as IBonded<U>;
         }
 
-        public static IXapBonded<TActual> Empty()
+        public static IBonded<TActual> FromValue<U>(U value)
+        {
+            return new XapBondedLocal<U>(value).Convert<TActual>();
+        }
+
+        public static IBonded<TActual> Empty()
         {
             return new XapBondedLocal<TActual>(GenericFactory.Create<TActual>());
         }
-
-        public override TActual Value { get; set; }
-        public override XapBonded<TR> Cast<TR>()
-        {
-            throw new NotImplementedException();
-        }
     }
 
-    internal class Remote<T, R> : IXapBonded<T>
+    internal class XapBondedPayload<T, R> : IBonded<T>
         where R : Bond.IO.ICloneable<R>
     {
         private readonly R reader;
         private readonly RuntimeSchema schema;
 
-        private readonly Lazy<T> ghost;
-
-        public Remote(R reader, RuntimeSchema schema)
+        public XapBondedPayload(R reader, RuntimeSchema schema)
         {
             this.reader = reader.Clone();
             this.schema = schema;
-
-            this.ghost = new Lazy<T>(() =>
-            {
-                var result = Deserialize();
-                ((IXapReadonly)result).SetReadonly();
-                return result;
-            });
         }
 
         public T Deserialize()
         {
-            return this.ghost.Value;
+            return Deserialize<T>();
         }
 
         public void Serialize<W>(W writer)
@@ -108,22 +87,17 @@ namespace UnitTest.XapBondedStuff
 
         public IBonded<U> Convert<U>()
         {
-            return new Remote<U, R>(reader, schema);
-        }
-
-        public T GhostValue()
-        {
-            return ghost.Value;
+            return new XapBondedPayload<U, R>(reader, schema);
         }
     }
 
-    internal class XapBondedImplPayload<R> : IBonded
+    internal class XapBondedPayload<R> : IBonded
         where R : Bond.IO.ICloneable<R>
     {
         private readonly R reader;
         private readonly RuntimeSchema schema;
 
-        public XapBondedImplPayload(R reader, RuntimeSchema schema)
+        public XapBondedPayload(R reader, RuntimeSchema schema)
         {
             this.reader = reader.Clone();
             this.schema = schema;
@@ -139,137 +113,94 @@ namespace UnitTest.XapBondedStuff
             return Facade.Deserializer<R, U>(schema).Deserialize<U>(reader.Clone());
         }
 
-        public IXapBonded<U> Convert<U>()
-        {
-            return new Remote<U, R>(reader, schema);
-        }
-
         IBonded<U> IBonded.Convert<U>()
         {
-            return Convert<U>();
-        }
-    }
-
-    internal static class Facade
-    {
-        public static Cloner<TSource> Cloner<TSource, T>()
-        {
-            return new Cloner<TSource>(typeof(T), new ObjectParser(typeof(TSource), ObjectBondedFactory), Factory);
-        }
-
-        public static Serializer<W> Serializer<W, T>()
-        {
-            return new Serializer<W>(typeof(T), new ObjectParser(typeof(T), ObjectBondedFactory), false);
-        }
-
-        public static Deserializer<R> Deserializer<R, T>(RuntimeSchema schema)
-        {
-            var parser = schema.HasValue
-                             ? ParserFactory<R>.Create(schema, PayloadBondedFactory)
-                             : ParserFactory<R>.Create(typeof(T), PayloadBondedFactory);
-
-            return new Deserializer<R>(typeof(T), parser, Factory, false);
-        }
-
-        private static Expression ObjectBondedFactory(Type objectType, Expression value)
-        {
-            var method = typeof(XapBondedImpl<>).MakeGenericType(objectType).GetMethod("FromLocal", new[] { value.Type });
-
-            return Expression.Call(method, value);
-        }
-
-        private static Expression PayloadBondedFactory(Expression reader, Expression schema)
-        {
-            var ctor = typeof(XapBondedImplPayload<>).MakeGenericType(reader.Type).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, new[] { reader.Type, schema.Type }, null);
-            return Expression.New(ctor, reader, schema);
-        }
-
-        public static Transcoder<R, W> Transcoder<R, W>(RuntimeSchema schema)
-        {
-            return new Transcoder<R, W>(schema, ParserFactory<R>.Create(schema, PayloadBondedFactory));
-        }
-
-        private static Expression Factory(Type type, Type schemaType, params Expression[] arguments)
-        {
-            if (type.IsGenericType)
-            {
-                var typeDefinition = type.GetGenericTypeDefinition();
-                if (typeDefinition == typeof(XapBondedImpl<>))
-                {
-                    var arg = arguments[0]; // CustomBondedVoid<R>
-                    var bondedConvert = typeof(IBonded).GetMethod("Convert").MakeGenericMethod(type.GetGenericArguments());
-
-                    return Expression.ConvertChecked(Expression.Call(arg, bondedConvert), type);
-                }
-            }
-
-            return null;
-        }
-    }
-
-    public static class XapBondedFactory<T>
-    {
-        public static XapBonded<T> FromLocal<U>(U value)
-            where U : T
-        {
-            return new XapBondedLocal<U>(value).Convert<T>();
-        }
-
-        public static XapBonded<T> Empty()
-        {
-            return XapBondedLocal<T>.Empty();
+            return new XapBondedPayload<U, R>(reader, schema);
         }
     }
 
     internal class XapBondedImpl<T> : XapBonded<T>, IBonded<T>
     {
-        private IXapBonded<T> holder;
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        private Lazy<T> lazyValue;
 
-        private XapBondedImpl(IXapBonded<T> holder)
+        [DebuggerBrowsable(DebuggerBrowsableState.Never)]
+        private IBonded<T> bonded;
+
+        private IBonded<T> Bonded
         {
-            this.holder = holder;
+            get { return this.bonded; }
+            set
+            {
+                this.bonded = value;
+                this.InvalidateValue(value);
+            }
         }
 
-        
+        private void InvalidateValue(IBonded<T> newHolder)
+        {
+            this.lazyValue = new Lazy<T>(() => CreateReadOnlyValue(newHolder));
+        }
+
+        private XapBondedImpl(IBonded<T> bonded)
+        {
+            this.Bonded = bonded;
+        }
 
         public override T Value
         {
-            get
-            {
-                return holder.GetValue<T>();
-            }
-            set
-            {
-                // questionable
-                holder = new XapBondedLocal<T>(value);
-            }
+            get { return this.lazyValue.Value; }
+            set { this.Bonded = XapBondedLocal<T>.FromValue(value); }
         }
 
         public override XapBonded<TR> Cast<TR>()
         {
-            return new XapBondedImpl<TR>(this.holder.Convert<TR>());
+            return new XapBondedImpl<TR>(this.Bonded.Convert<TR>());
         }
-
-        
 
         public T Deserialize()
         {
-            return this.holder.Deserialize<T>();
+            return this.Bonded.Deserialize<T>();
         }
 
         public void Serialize<W>(W writer)
         {
-            return this.holder.Serialize(writer);
+            this.Bonded.Serialize(writer);
         }
 
         public U Deserialize<U>()
         {
-            throw new System.NotImplementedException();
+            return this.Bonded.Deserialize<U>();
         }
 
         public IBonded<U> Convert<U>()
         {
-            return new XapBondedImpl<U>(this.holder.Convert<U>());
+            return new XapBondedImpl<U>(this.bonded.Convert<U>());
+        }
+
+        public static XapBonded<T> FromBonded(IBonded<T> bonded)
+        {
+            return new XapBondedImpl<T>(bonded);
+        }
+
+        public static XapBonded<T> FromLocal<U>(U value)
+        {
+            return new XapBondedImpl<T>(XapBondedLocal<U>.FromValue(value).Convert<T>());
+        }
+
+        public static XapBonded<T> Empty()
+        {
+            return new XapBondedImpl<T>(XapBondedLocal<T>.Empty());
+        }
+
+        private static T CreateReadOnlyValue(IBonded<T> bonded)
+        {
+            var value = bonded.Deserialize();
+            if (value is IXapReadonly)
+            {
+                ((IXapReadonly)value).SetReadonly();
+            }
+            return value;
         }
     }
 }

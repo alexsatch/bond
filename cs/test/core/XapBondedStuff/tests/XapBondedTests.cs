@@ -6,7 +6,6 @@
 // ----------------------------------------------------------------------
 namespace UnitTest.XapBondedStuff.tests
 {
-    using System;
     using Bond.IO.Safe;
     using Bond.Protocols;
     using NUnit.Framework;
@@ -41,7 +40,7 @@ namespace UnitTest.XapBondedStuff.tests
         }
 
         [Bond.Schema]
-        public class B : PluginData
+        public class B : PluginData, IXapReadonly
         {
             [Bond.Id(0), Bond.RequiredOptional]
             public string SchemaName { get; set; }
@@ -88,6 +87,7 @@ namespace UnitTest.XapBondedStuff.tests
                 if (this.IsReadOnly)
                     return;
 
+                base.SetReadonly();
                 this.IsReadOnly = true;
             }
         }
@@ -97,12 +97,12 @@ namespace UnitTest.XapBondedStuff.tests
         {
             var a = new A();
             
-            Assert.That(a.BondedB, Is.Not.Null);
-            Assert.That(a.BondedB.ReadOnly, Is.False);
+            Assert.That(a.BondedB, Is.Not.Null, "a.BondedB should be non-null");
+            Assert.That(a.BondedB.ReadOnly, Is.False, "a.BondedB should be read-write");
 
-            Assert.That(a.BondedB.Value, Is.Not.Null);
-            Assert.That(a.BondedB.Value, Is.TypeOf<B>(), "should be exactly of type B");
-            Assert.That(a.BondedB.Value.IsReadOnly, Is.False);
+            Assert.That(a.BondedB.Value, Is.Not.Null, "a.BondedB.Value should be non-null");
+            Assert.That(a.BondedB.Value, Is.TypeOf<B>(), "a.BondedB.Value should be exactly of type B");
+            Assert.That(a.BondedB.Value.IsReadOnly, Is.True, "a.BondedB.Value should be readonly");
 
             Assert.That(a.BondedB.Value.SchemaName, Is.EqualTo("Xap.B"));
         }

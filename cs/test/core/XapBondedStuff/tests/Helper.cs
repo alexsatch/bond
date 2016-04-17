@@ -1,15 +1,17 @@
 namespace UnitTest.XapBondedStuff.tests
 {
+    using Bond;
+
     internal static class Helper
     {
         public static void Serialize<W, T>(W writer, T o)
         {
-            Bond.Serialize.To(writer, o);
+            Facade.Serializer<W,T>().Serialize(o, writer);
         }
 
         public static T Deserialize<R, T>(R reader)
         {
-            return Bond.Deserialize<T>.From(reader);
+            return Facade.Deserializer<R, T>(RuntimeSchema.Empty).Deserialize<T>(reader);
         }
     }
 }

@@ -52,6 +52,7 @@
     <Compile Include="TypeAliasTests.cs" />
     <Compile Include="ProtocolTests.cs" />
     <Compile Include="Util.cs" />
+    <Compile Include="XapBondedStuff\Facade.cs" />
     <Compile Include="XapBondedStuff\PluginData.cs" />
     <Compile Include="XapBondedStuff\tests\Helper.cs" />
     <Compile Include="XapBondedStuff\tests\XapBondedTests.cs" />

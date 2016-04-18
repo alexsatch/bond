@@ -52,7 +52,7 @@ namespace Bond.xap
             return value;
         }
 
-        public void SetReadOnly()
+        void IXapReadonly.SetReadonly()
         {
             var pd = instance as PluginData;
             if (pd != null && !pd.IsReadOnly)

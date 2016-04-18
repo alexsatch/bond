@@ -215,7 +215,7 @@ namespace UnitTest.XapBondedStuff.tests
             Assert.That(a.BondedB.ReadOnly, Is.True);
             Assert.That(a.BondedB.Value.IsReadOnly, Is.True);
 
-            Assert.Throws<InvalidOperationException>(() => a.BondedB.Value = new B { SchemaName = "Blabla" });
+            Assert.Throws<InvalidOperationException>(() => a.BondedB.Value = new B { SchemaName = "this shouldn't work" });
         }
 
         [Test]
@@ -233,10 +233,7 @@ namespace UnitTest.XapBondedStuff.tests
         [Test]
         public void Local_RoundTrip_RemoteT()
         {
-            var a = new A
-                    {
-                        BondedB = XapBondedImpl<B>.FromLocal(new C {c = 42})
-                    };
+            var a = new A { BondedB = XapBondedImpl<B>.FromLocal(new C {c = 42}) };
 
             var a1 = RoundTrip(a);
             
@@ -259,7 +256,7 @@ namespace UnitTest.XapBondedStuff.tests
         }
 
         [Test]
-        public void Local_RoundTrip_Convert()
+        public void Local_RoundTrip_Cast()
         {
             var a = new A
             {

@@ -8,29 +8,42 @@ namespace Bond.xap
     public class XapBondedImpl<T> : XapBonded<T>, IBonded<T>, IXapReadonly
     {
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        private Lazy<T> lazyValue;
+        private Lazy<T> lazyProjection;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        private IProjectable bonded;
+        private IProjectable projectable;
 
-        private XapBondedImpl(IProjectable bonded)
+        private XapBondedImpl(IProjectable projectable)
         {
-            this.Projectable = bonded;
+            this.Projectable = projectable;
         }
 
         private IProjectable Projectable
         {
-            get { return this.bonded; }
+            get { return this.projectable; }
             set
             {
-                this.bonded = value;
-                this.lazyValue = new Lazy<T>(() => CreateReadOnlyValue(value));
+                this.projectable = value;
+                this.lazyProjection = new Lazy<T>(() => CreateReadOnlyValue(value));
             }
         }
 
+        /// <summary>
+        /// Represents the "projection" of value stored in <see cref="XapBonded{T}"/> 
+        /// </summary>
+        /// <remarks>
+        /// If <see cref="XapBonded{T}"/> was created from an object instance of type U and U : T,
+        /// the instance would be returned as is. <br/>
+        /// 
+        /// Otherwise, the read-only projection ("deep-copy" of data) will be created.
+        /// </remarks>
+        /// <returns>Projection of value stored in the current instance.</returns>
         public override T Value
         {
-            get { return this.lazyValue.Value; }
+            get
+            {
+                return this.lazyProjection.Value;
+            }
             set
             {
                 if (ReadOnly)
@@ -42,48 +55,51 @@ namespace Bond.xap
             }
         }
 
+        /// <summary>
+        /// Converts the current instance of <see cref="XapBonded{T}"/> into <see cref="XapBonded{TR}"/>
+        /// </summary>
+        /// <typeparam name="TR">Type of which to convert XapBonded{T} to.</typeparam>
+        /// <returns><see cref="XapBonded{T}"/> with the same state.</returns>
         public override XapBonded<TR> Cast<TR>()
         {
-            // we keep the same instance of Bonded since it's immutable
-            // we don't call Bonded.Convert<TR>() because it will return null in case of Local<T>
+            // we keep the same instance of projectable
+            // we don't call .Convert<TR>() because it might return null in case of Local<T>
             // (it allows us to call Cast<TR> when TR does not inherit from T)
-
             return new XapBondedImpl<TR>(this.Projectable);
         }
 
-        public T Deserialize()
+        T IBonded<T>.Deserialize()
         {
             return this.Projectable.Deserialize<T>();
         }
 
-        public void Serialize<W>(W writer)
+        void IBonded.Serialize<W>(W writer)
         {
             this.Projectable.Serialize(writer);
         }
 
-        public U Deserialize<U>()
+        U IBonded.Deserialize<U>()
         {
             return this.Projectable.Deserialize<U>();
         }
 
-        public IBonded<U> Convert<U>()
+        IBonded<U> IBonded.Convert<U>()
         {
-            return new XapBondedImpl<U>(this.bonded);
-        }
-
-        internal static XapBonded<T> FromProjectable(IProjectable bonded)
-        {
-            return new XapBondedImpl<T>(bonded);
+            return new XapBondedImpl<U>(this.projectable);
         }
 
         public static XapBonded<T> FromLocal(T value)
         {
-            return new XapBondedImpl<T>(XapBondedLocal<T>.FromValue(value));
+            return FromProjectable(XapBondedLocal<T>.FromValue(value));
         }
 
         public static XapBonded<T> Empty()
         {
-            return new XapBondedImpl<T>(XapBondedLocal<T>.Empty());
+            return FromProjectable(XapBondedLocal<T>.Empty());
+        }
+        internal static XapBonded<T> FromProjectable(IProjectable projectable)
+        {
+            return new XapBondedImpl<T>(projectable);
         }
 
         private static T CreateReadOnlyValue(IProjectable projectable)
@@ -99,7 +115,7 @@ namespace Bond.xap
             }
 
             this.ReadOnly = true;
-            this.Projectable.SetReadOnly();
+            this.Projectable.SetReadonly();
         }
     }
 }

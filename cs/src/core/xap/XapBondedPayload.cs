@@ -2,10 +2,9 @@ namespace Bond.xap
 {
     using System;
 
-    internal interface IProjectable : IBonded
+    internal interface IProjectable : IBonded, IXapReadonly
     {
         U GetProjection<U>();
-        void SetReadOnly();
     }
 
     internal class XapBondedPayload<R> : IProjectable
@@ -43,7 +42,7 @@ namespace Bond.xap
             return value;
         }
 
-        public void SetReadOnly()
+        public void SetReadonly()
         {
             // no-op
         }

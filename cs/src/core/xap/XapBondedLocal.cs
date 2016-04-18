@@ -19,7 +19,7 @@ namespace Bond.xap
         /// <summary>
         ///     ! No polymorphism here ! <br />
         ///     If you supply value of type U : T, it will be still serialized as T, not U.
-        ///     Use <see cref="FromValue" /> method to get polymorphic behavior.
+        ///     Use <see cref="FromValue" /> method instead to get polymorphic behavior.
         /// </summary>
         private XapBondedLocal(T value)
         {

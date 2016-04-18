@@ -1,15 +1,16 @@
 namespace Bond.xap
 {
     using System;
-    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Linq.Expressions;
     using System.Reflection;
 
-    internal class XapBondedLocal<TActual> : IBonded<TActual>
+    internal class XapBondedLocal<TActual> : IProjectable
     {
-        private static readonly Dictionary<Type, Func<TActual, IBonded<TActual>>> localCache
-            = new Dictionary<Type, Func<TActual, IBonded<TActual>>>();
+        private static readonly MethodInfo fromValueMethod = Reflection.GenericMethodInfoOf(() => FromValue<TActual>(default(TActual)));
+
+        private static readonly Dictionary<Type, Func<TActual, IProjectable>> localCache
+            = new Dictionary<Type, Func<TActual, IProjectable>>();
 
         private readonly TActual instance;
 
@@ -19,11 +20,6 @@ namespace Bond.xap
         private XapBondedLocal(TActual value)
         {
             this.instance = value;
-        }
-
-        public TActual Deserialize()
-        {
-            return this.Deserialize<TActual>();
         }
 
         public void Serialize<W>(W writer)
@@ -36,19 +32,48 @@ namespace Bond.xap
             return Facade.Cloner<TActual, T>().Clone<T>(this.instance);
         }
 
-        public IBonded<U> Convert<U>()
+        IBonded<U> IBonded.Convert<U>()
         {
-            return this as IBonded<U>;
+            throw new NotSupportedException();
         }
 
-        public static IBonded<TActual> FromValue(TActual value)
+        public U GetProjection<U>()
+        {
+            if (instance is U)
+            {
+                // non-readonly projection of actual instance
+                return (U) (object) instance;
+            }
+
+            var value = Deserialize<U>();
+            var @readonly = (IXapReadonly) value;
+            @readonly.SetReadonly();
+
+            return value;
+        }
+
+        public void SetReadOnly()
+        {
+            var pd = instance as PluginData;
+            if (pd != null && !pd.IsReadOnly)
+            {
+                ((IXapReadonly)instance).SetReadonly();
+            }
+        }
+
+        internal static IProjectable Empty()
+        {
+            return new XapBondedLocal<TActual>(GenericFactory.Create<TActual>());
+        }
+
+        internal static IProjectable FromValue(TActual value)
         {
             if (value == null)
             {
                 throw new ArgumentNullException("value", "Value cannot be null.");
             }
 
-            Func<TActual, IBonded<TActual>> factory;
+            Func<TActual, IProjectable> factory;
             var type = value.GetType();
             if (!localCache.TryGetValue(type, out factory))
                 factory = localCache[type] = PerTypeValueFactory(type);
@@ -56,28 +81,21 @@ namespace Bond.xap
             return factory(value);
         }
 
-        private static readonly MethodInfo fromValueMethod = Reflection.GenericMethodInfoOf(() => FromValue<TActual>(default(TActual)));
+        private static IProjectable FromValue<U>(U value)
+            where U : TActual
+        {
+            return new XapBondedLocal<U>(value);
+        }
 
-        private static Func<TActual, IBonded<TActual>> PerTypeValueFactory(Type type)
+        private static Func<TActual, IProjectable> PerTypeValueFactory(Type type)
         {
             var value = Expression.Parameter(typeof(TActual), "value");
             var method = fromValueMethod.MakeGenericMethod(type);
             var call = Expression.Call(method, Expression.ConvertChecked(value, type));
 
-            var expression = Expression.Lambda<Func<TActual, IBonded<TActual>>>(call, value);
+            var expression = Expression.Lambda<Func<TActual, IProjectable>>(call, value);
 
             return expression.Compile();
-        }
-
-        private static IBonded<TActual> FromValue<U>(U value)
-            where U : TActual
-        {
-            return new XapBondedLocal<U>(value).Convert<TActual>();
-        }
-
-        public static IBonded Empty()
-        {
-            return new XapBondedLocal<TActual>(GenericFactory.Create<TActual>());
         }
     }
 }

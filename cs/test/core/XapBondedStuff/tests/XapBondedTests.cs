@@ -130,7 +130,7 @@ namespace UnitTest.XapBondedStuff.tests
 
             Assert.That(a.BondedB.Value, Is.Not.Null, "a.BondedB.Value should be non-null");
             Assert.That(a.BondedB.Value, Is.TypeOf<B>(), "a.BondedB.Value should be exactly of type B");
-            Assert.That(a.BondedB.Value.IsReadOnly, Is.True, "a.BondedB.Value should be readonly");
+            Assert.That(a.BondedB.Value.IsReadOnly, Is.False, "a.BondedB.Value should not be readonly");
 
             Assert.That(a.BondedB.Value.SchemaName, Is.EqualTo("Xap.B"));
         }
@@ -141,8 +141,30 @@ namespace UnitTest.XapBondedStuff.tests
             var a = new A {BondedB = XapBondedImpl<B>.FromLocal(new C())};
 
             Assert.That(a.BondedB, Is.Not.Null);
-            Assert.That(a.BondedB.Value, Is.TypeOf<B>(), "should be exactly of type B");
+            Assert.That(a.BondedB.Value, Is.TypeOf<C>(), "should be exactly of type C");
             Assert.That(a.BondedB.Value.SchemaName, Is.EqualTo("Xap.C"));
+        }
+
+        [Test]
+        public void Local_AssignToSourcePropertyEndsUpInPayload()
+        {
+            var c = new C {c = 1};
+            var a = new A {BondedB = XapBondedImpl<B>.FromLocal(c)};
+            c.c = 42;
+
+            var a1 = RoundTrip(a);
+            Assert.That(a1.BondedB.Cast<C>().Value.c, Is.EqualTo(42));
+        }
+
+        [Test]
+        public void Local_AssignToValueEndsUpInPayload()
+        {
+            var c = new C { c = 1 };
+            var a = new A { BondedB = XapBondedImpl<B>.FromLocal(c) };
+            a.BondedB.Cast<C>().Value.c = 42;
+
+            var a1 = RoundTrip(a);
+            Assert.That(a1.BondedB.Cast<C>().Value.c, Is.EqualTo(42));
         }
 
         [Test]
@@ -171,6 +193,8 @@ namespace UnitTest.XapBondedStuff.tests
 
             Assert.That(a.IsReadOnly, Is.True);
             Assert.That(a.BondedB.ReadOnly, Is.True);
+            Assert.That(a.BondedB.Value.IsReadOnly, Is.True);
+            Assert.That(a.BondedB.Cast<C>().Value.IsReadOnly, Is.True);
             Assert.Throws<InvalidOperationException>(() => a.BondedB.Value = new B {SchemaName = "Blabla"});
         }
 
@@ -239,7 +263,7 @@ namespace UnitTest.XapBondedStuff.tests
         {
             var a = new A
             {
-                BondedB = XapBondedImpl<B>.FromLocal(new C())
+                BondedB = XapBondedImpl<B>.FromLocal(new C { c = 42})
             };
 
             var a1 = RoundTrip(a);
@@ -252,6 +276,7 @@ namespace UnitTest.XapBondedStuff.tests
             Assert.That(a1.BondedB.Value.IsReadOnly, Is.True); // should be recursively true
 
             Assert.That(a1.BondedB.Value.SchemaName, Is.EqualTo("Xap.C"));
+            Assert.That(a1.BondedB.Cast<C>().Value.c, Is.EqualTo(42));
         }
 
         private T RoundTrip<T>(T a)

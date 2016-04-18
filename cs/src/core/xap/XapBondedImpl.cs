@@ -11,14 +11,14 @@ namespace Bond.xap
         private Lazy<T> lazyValue;
 
         [DebuggerBrowsable(DebuggerBrowsableState.Never)]
-        private IBonded bonded;
+        private IProjectable bonded;
 
-        private XapBondedImpl(IBonded bonded)
+        private XapBondedImpl(IProjectable bonded)
         {
-            this.Bonded = bonded;
+            this.Projectable = bonded;
         }
 
-        private IBonded Bonded
+        private IProjectable Projectable
         {
             get { return this.bonded; }
             set
@@ -38,7 +38,7 @@ namespace Bond.xap
                     throw new InvalidOperationException("The object is readonly.");
                 }
 
-                this.Bonded = XapBondedLocal<T>.FromValue(value);
+                this.Projectable = XapBondedLocal<T>.FromValue(value);
             }
         }
 
@@ -48,22 +48,22 @@ namespace Bond.xap
             // we don't call Bonded.Convert<TR>() because it will return null in case of Local<T>
             // (it allows us to call Cast<TR> when TR does not inherit from T)
 
-            return new XapBondedImpl<TR>(this.Bonded);
+            return new XapBondedImpl<TR>(this.Projectable);
         }
 
         public T Deserialize()
         {
-            return this.Bonded.Deserialize<T>();
+            return this.Projectable.Deserialize<T>();
         }
 
         public void Serialize<W>(W writer)
         {
-            this.Bonded.Serialize(writer);
+            this.Projectable.Serialize(writer);
         }
 
         public U Deserialize<U>()
         {
-            return this.Bonded.Deserialize<U>();
+            return this.Projectable.Deserialize<U>();
         }
 
         public IBonded<U> Convert<U>()
@@ -71,7 +71,7 @@ namespace Bond.xap
             return new XapBondedImpl<U>(this.bonded);
         }
 
-        public static XapBonded<T> FromBonded(IBonded bonded)
+        internal static XapBonded<T> FromProjectable(IProjectable bonded)
         {
             return new XapBondedImpl<T>(bonded);
         }
@@ -86,19 +86,20 @@ namespace Bond.xap
             return new XapBondedImpl<T>(XapBondedLocal<T>.Empty());
         }
 
-        private static T CreateReadOnlyValue(IBonded bonded)
+        private static T CreateReadOnlyValue(IProjectable projectable)
         {
-            var value = bonded.Deserialize<T>();
-            if (value is IXapReadonly)
-            {
-                ((IXapReadonly)value).SetReadonly();
-            }
-            return value;
+            return projectable.GetProjection<T>();
         }
 
         public void SetReadonly()
         {
+            if (ReadOnly)
+            {
+                return;
+            }
+
             this.ReadOnly = true;
+            this.Projectable.SetReadOnly();
         }
     }
 }

@@ -1,6 +1,14 @@
 namespace Bond.xap
 {
-    internal class XapBondedPayload<R> : IBonded
+    using System;
+
+    internal interface IProjectable : IBonded
+    {
+        U GetProjection<U>();
+        void SetReadOnly();
+    }
+
+    internal class XapBondedPayload<R> : IProjectable
         where R : Bond.IO.ICloneable<R>
     {
         private readonly R reader;
@@ -24,43 +32,20 @@ namespace Bond.xap
 
         IBonded<U> IBonded.Convert<U>()
         {
-            return new XapBondedPayload<U, R>(this.reader, this.schema);
-        }
-    }
-
-    internal class XapBondedPayload<T, R> : IBonded<T>
-        where R : IO.ICloneable<R>
-    {
-        private readonly R reader;
-        private readonly RuntimeSchema schema;
-
-        public XapBondedPayload(R reader, RuntimeSchema schema)
-        {
-            this.reader = reader.Clone();
-            this.schema = schema;
+            throw new NotSupportedException();
         }
 
-        public T Deserialize()
+        public U GetProjection<U>()
         {
-            return this.Deserialize<T>();
+            var value = Deserialize<U>();
+            var @readonly = (IXapReadonly) value;
+            @readonly.SetReadonly();
+            return value;
         }
 
-        public void Serialize<W>(W writer)
+        public void SetReadOnly()
         {
-            if (this.schema.HasValue)
-                Facade.Transcoder<R, W>(this.schema).Transcode(this.reader.Clone(), writer);
-            else
-                Facade.Transcoder<R, W>(typeof(T)).Transcode(this.reader.Clone(), writer);
-        }
-
-        public U Deserialize<U>()
-        {
-            return Facade.Deserializer<R, U>(this.schema).Deserialize<U>(this.reader.Clone());
-        }
-
-        public IBonded<U> Convert<U>()
-        {
-            return new XapBondedPayload<U, R>(this.reader, this.schema);
+            // no-op
         }
     }
 }

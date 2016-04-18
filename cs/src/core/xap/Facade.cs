@@ -59,8 +59,8 @@ namespace Bond.xap
                 {
                     // target type: U
                     var typeU = type.GetGenericArguments();
-                    var fromBondedMethod = typeof(XapBondedImpl<>).MakeGenericType(typeU).FindMethod("FromBonded", typeof(IBonded));
-                    return Expression.Call(fromBondedMethod, arguments[0]);
+                    var fromBondedMethod = typeof(XapBondedImpl<>).MakeGenericType(typeU).FindMethod("FromProjectable", typeof(IProjectable));
+                    return Expression.Call(fromBondedMethod, Expression.ConvertChecked(arguments[0], typeof(IProjectable)));
                 }
             }
 

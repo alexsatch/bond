@@ -2,8 +2,16 @@ namespace Bond.xap
 {
     using System;
 
+    /// <summary>
+    /// Represents a bonded payload (local or remote), that can return "projection" of some type U.
+    /// </summary>
     internal interface IProjectable : IBonded, IXapReadonly
     {
+        /// <summary>
+        /// Get the projection of the data stored in the bonded payload as type U.
+        /// </summary>
+        /// <typeparam name="U">Target type to get projection for.</typeparam>
+        /// <returns>Instance that represents the data stored in the bonded payload.</returns>
         U GetProjection<U>();
     }
 

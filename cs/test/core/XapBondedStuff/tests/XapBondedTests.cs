@@ -171,7 +171,7 @@ namespace UnitTest.XapBondedStuff.tests
         public void LocalBC_AssignToValueOtherC()
         {
             var a = new A {BondedB = XapBondedImpl<B>.FromLocal(new C {c = 1})};
-            a.BondedB.Value = new C { c = 2};
+            a.BondedB.Value = new C {c = 2};
 
             Assert.That(a.BondedB.Cast<C>().Value.c, Is.EqualTo(2));
         }

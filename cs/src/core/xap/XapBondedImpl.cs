@@ -62,9 +62,6 @@ namespace Bond.xap
         /// <returns><see cref="XapBonded{T}"/> with the same state.</returns>
         public override XapBonded<TR> Cast<TR>()
         {
-            // we keep the same instance of projectable
-            // we don't call .Convert<TR>() because it might return null in case of Local<T>
-            // (it allows us to call Cast<TR> when TR does not inherit from T)
             return new XapBondedImpl<TR>(this.Projectable);
         }
 

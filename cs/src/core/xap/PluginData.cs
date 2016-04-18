@@ -1,4 +1,4 @@
-namespace UnitTest.XapBondedStuff
+namespace Bond.xap
 {
     using System;
 

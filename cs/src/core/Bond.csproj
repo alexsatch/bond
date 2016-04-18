@@ -81,11 +81,24 @@
     <!-- Resharper Workaround -->
     <Compile Include="$(IntermediateOutputPath)\bond_types.cs" Condition="False" />
     <Compile Include="$(IntermediateOutputPath)\bond_const_types.cs" Condition="False" />
+    <Compile Include="xap\Facade.cs" />
+    <Compile Include="xap\IXapReadonly.cs" />
+    <Compile Include="xap\PluginData.cs">
+      <SubType>
+      </SubType>
+    </Compile>
+    <Compile Include="xap\XapBonded.cs" />
+    <Compile Include="xap\XapBondedImpl.cs" />
+    <Compile Include="xap\XapBondedLocal.cs" />
+    <Compile Include="xap\XapBondedPayload.cs" />
     <!-- End Resharper Workaround -->
   </ItemGroup>
   <ItemGroup>
     <Reference Include="Bond.Attributes">
       <HintPath>..\attributes\$(OutputPath)\Bond.Attributes.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Collections.Concurrent">
+      <HintPath>C:\Program Files (x86)\Reference Assemblies\Microsoft\Framework\.NETPortable\v4.5\System.Collections.Concurrent.dll</HintPath>
     </Reference>
   </ItemGroup>
   <Import Project="$(MSBuildThisFileDirectory)\..\..\build\Common.Internal.targets" />

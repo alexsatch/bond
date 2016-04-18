@@ -1,4 +1,4 @@
-namespace UnitTest.XapBondedStuff
+namespace Bond.xap
 {
     using System;
     using System.Linq.Expressions;
@@ -7,7 +7,7 @@ namespace UnitTest.XapBondedStuff
     using Bond;
     using Bond.Expressions;
 
-    internal static class Facade
+    public static class Facade
     {
         public static Cloner<TSource> Cloner<TSource, T>()
         {
@@ -28,21 +28,15 @@ namespace UnitTest.XapBondedStuff
             return new Deserializer<R>(typeof(T), parser, Factory, false);
         }
 
-        public static XapBonded<T> XapBondedLocal<T, U>(U value)
-        {
-            return XapBondedImpl<T>.FromLocal(value);
-        }
-
         private static Expression ObjectBondedFactory(Type objectType, Expression value)
         {
-            var method = typeof(XapBondedImpl<>).MakeGenericType(objectType).GetMethod("FromLocal", new[] { value.Type });
-
+            var method = typeof(XapBondedLocal<>).MakeGenericType(objectType).FindMethod("FromValue", value.Type);
             return Expression.Call(method, value);
         }
 
         private static Expression PayloadBondedFactory(Expression reader, Expression schema)
         {
-            var ctor = typeof(XapBondedPayload<>).MakeGenericType(reader.Type).GetConstructor(BindingFlags.Instance | BindingFlags.Public, null, new[] { reader.Type, schema.Type }, null);
+            var ctor = typeof(XapBondedPayload<>).MakeGenericType(reader.Type).GetConstructor(reader.Type, schema.Type);
             return Expression.New(ctor, reader, schema);
         }
 
@@ -51,21 +45,22 @@ namespace UnitTest.XapBondedStuff
             return new Transcoder<R, W>(schema, ParserFactory<R>.Create(schema, PayloadBondedFactory));
         }
 
+        public static Transcoder<R, W> Transcoder<R, W>(Type type)
+        {
+            return new Transcoder<R, W>(type, ParserFactory<R>.Create(type, PayloadBondedFactory));
+        }
+
         private static Expression Factory(Type type, Type schemaType, params Expression[] arguments)
         {
-            if (type.IsGenericType)
+            if (type.IsGenericType())
             {
                 var typeDefinition = type.GetGenericTypeDefinition();
                 if (typeDefinition == typeof(XapBonded<>))
                 {
                     // target type: U
                     var typeU = type.GetGenericArguments();
-                    
-                    var bondedConvertU = typeof(IBonded).GetMethod("Convert").MakeGenericMethod(typeU);
-                    var bondedU = Expression.Call(arguments[0], bondedConvertU);
-
-                    var fromBondedMethod = typeof(XapBondedImpl<>).MakeGenericType(typeU).GetMethod("FromBonded", typeof(IBonded<>).MakeGenericType(typeU));
-                    return Expression.Call(fromBondedMethod, bondedU);
+                    var fromBondedMethod = typeof(XapBondedImpl<>).MakeGenericType(typeU).FindMethod("FromBonded", typeof(IBonded));
+                    return Expression.Call(fromBondedMethod, arguments[0]);
                 }
             }
 

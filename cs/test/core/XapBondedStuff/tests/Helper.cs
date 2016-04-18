@@ -1,6 +1,7 @@
 namespace UnitTest.XapBondedStuff.tests
 {
     using Bond;
+    using Bond.xap;
 
     internal static class Helper
     {

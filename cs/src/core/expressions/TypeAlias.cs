@@ -64,7 +64,7 @@ namespace Bond.Expressions
                 }
             }
 
-            return value;
+            return Expression.Convert(value, type);
         }
 
         static void GetSchemaTypes(Type type, HashSet<Type> schemaTypes)

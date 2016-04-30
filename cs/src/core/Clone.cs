@@ -4,7 +4,9 @@
 namespace Bond
 {
     using System;
+    using System.Collections.Generic;
     using System.Linq;
+    using System.Linq.Expressions;
     using Bond.Expressions;
 
     /// <summary>
@@ -37,6 +39,7 @@ namespace Bond
     public class Cloner<SourceT>
     {
         readonly Func<object, object>[] clone;
+        public IEnumerable<Expression<Func<object, object>>> Expressions { get; private set; }
 
         /// <summary>
         /// Create a cloner that makes clones of the same type <typeparamref name="SourceT"/> as source objects.
@@ -60,9 +63,15 @@ namespace Bond
         /// <param name="parser">Custom <see cref="IParser"/> instance</param>
         public Cloner(Type type, IParser parser)
         {
-            clone = Generate(type,
-                             new DeserializerTransform<object>((o, i) => clone[i](o)),
-                             parser);
+            Func<Expression, Expression, Expression> deferredDeserialize = (o, i) =>
+            {
+                var arrayIndex = Expression.ArrayIndex(Expression.Constant(clone), i);
+                return Expression.Invoke(arrayIndex, o);
+            };
+
+            Expressions = Generate(type, new DeserializerTransform<object>(deferredDeserialize, false), parser);
+
+            clone = Expressions.Select(lambda => lambda.Compile()).ToArray();
         }
 
         /// <summary>
@@ -82,13 +91,20 @@ namespace Bond
         /// <param name="factory">factory implementing <see cref="IFactory"/> interface</param>
         public Cloner(Type type, IParser parser, IFactory factory)
         {
-            clone = Generate(type,
+            Func<Expression, Expression, Expression> deferredDeserialize = (o, i) =>
+            {
+                var arrayIndex = Expression.ArrayIndex(Expression.Constant(clone), i);
+                return Expression.Invoke(arrayIndex, o);
+            };
+            Expressions = Generate(type,
                              new DeserializerTransform<object>(
-                                 (o, i) => clone[i](o),
+                                 deferredDeserialize,
                                  true,
                                  (t1, t2) => factory.CreateObject(t1, t2),
                                  (t1, t2, count) => factory.CreateContainer(t1, t2, count)),
                              parser);
+
+            clone = Expressions.Select(lambda => lambda.Compile()).ToArray();
         }
 
         /// <summary>
@@ -108,11 +124,16 @@ namespace Bond
         /// <param name="factory">factory delegate returning expressions to create objects</param>
         public Cloner(Type type, IParser parser, Factory factory)
         {
-            clone = Generate(type,
-                             new DeserializerTransform<object>(
-                                 (o, i) => clone[i](o),
-                                 factory),
-                             parser);
+            Func<Expression, Expression, Expression> deferredDeserialize = (o, i) =>
+            {
+                var arrayIndex = Expression.ArrayIndex(Expression.Constant(clone), i);
+                return Expression.Invoke(arrayIndex, o);
+            };
+
+
+            Expressions = Generate(type, new DeserializerTransform<object>(deferredDeserialize, factory), parser);
+
+            clone = Expressions.Select(lambda => lambda.Compile()).ToArray();
         }
 
         /// <summary>
@@ -126,11 +147,11 @@ namespace Bond
             return (T)clone[0](source);
         }
 
-        static Func<object, object>[] Generate(Type type, DeserializerTransform<object> transform, IParser parser)
+        
+        internal static IEnumerable<Expression<Func<object, object>>> Generate(Type type, DeserializerTransform<object> transform, IParser parser)
         {
             parser = parser ?? new ObjectParser(typeof(SourceT));
-
-            return transform.Generate(parser, type).Select(lambda => lambda.Compile()).ToArray();
+            return transform.Generate(parser, type);
         }
     }
 }

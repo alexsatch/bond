@@ -11,6 +11,7 @@ namespace Bond
     using System.Linq.Expressions;
     using System.Reflection;
     using System.Text;
+    using Bond.Expressions;
 
     public static class Reflection
     {
@@ -898,6 +899,70 @@ namespace Bond
             }
 
             return schemaType;
+        }
+
+        internal static Expression GetDefaultValueExpression(this ISchemaField schemaField, TypeAlias typeAlias)
+        {
+            var defaultValue = schemaField.GetDefaultValue();
+            var fieldSchemaType = schemaField.GetSchemaType();
+            
+            if (defaultValue == null)
+            {
+                if (!fieldSchemaType.IsBondNullable())
+                    throw new NotImplementedException();
+            }
+            else
+            {
+                var defaultValueType = defaultValue.GetType();
+                var alias = defaultValueType != fieldSchemaType;
+
+                switch (fieldSchemaType.GetBondDataType())
+                {
+                    case BondDataType.BT_BOOL:
+                        return Expression.Constant(defaultValue, defaultValueType);
+
+                    case BondDataType.BT_UINT8:
+                    case BondDataType.BT_UINT16:
+                    case BondDataType.BT_UINT32:
+                    case BondDataType.BT_UINT64:
+                        return alias
+                            ? GetAliasedExpression(schemaField, typeAlias, defaultValue)
+                            : Expression.Constant(defaultValue, defaultValueType);
+
+                    case BondDataType.BT_INT8:
+                    case BondDataType.BT_INT16:
+                    case BondDataType.BT_INT32:
+                    case BondDataType.BT_INT64:
+                        return alias
+                            ? GetAliasedExpression(schemaField, typeAlias, defaultValue)
+                            : Expression.Constant(defaultValue, defaultValueType);
+
+                    case BondDataType.BT_FLOAT:
+                    case BondDataType.BT_DOUBLE:
+                        return alias
+                            ? GetAliasedExpression(schemaField, typeAlias, defaultValue)
+                            : Expression.Constant(defaultValue, defaultValueType);
+
+                    case BondDataType.BT_STRING:
+                        return alias
+                            ? GetAliasedExpression(schemaField, typeAlias, defaultValue)
+                            : Expression.Constant(defaultValue, defaultValueType);
+
+                    case BondDataType.BT_WSTRING:
+                        return Expression.Constant(defaultValue, defaultValueType);
+                }
+            }
+
+            return Expression.Constant(defaultValue, schemaField.MemberType);
+        }
+
+        private static Expression GetAliasedExpression(ISchemaField schemaField, TypeAlias typeAlias, object defaultValue)
+        {
+            var defaultValueType = schemaField.MemberType;
+            
+            var evalCall = Expression.Convert(typeAlias.Convert(Expression.Constant(defaultValue, defaultValueType), schemaField.GetSchemaType()), typeof(object));
+            var eval = Expression.Lambda<Func<object>>(evalCall).Compile()();
+            return typeAlias.Convert(Expression.Constant(eval), defaultValueType);
         }
 
         internal static object GetDefaultValue(this ISchemaField schemaField)

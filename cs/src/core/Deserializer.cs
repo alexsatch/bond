@@ -6,6 +6,7 @@ namespace Bond
     using System;
     using System.Diagnostics;
     using System.Linq;
+    using System.Linq.Expressions;
     using System.Reflection;
     using Bond.Expressions;
     using Bond.IO;
@@ -175,13 +176,20 @@ namespace Bond
 
         Deserializer(Type type, IParser parser, IFactory factory = null, Factory factory2 = null, bool inlineNested = true)
         {
+            Func<Expression, Expression, Expression> deferredDeserialize = (r, i) =>
+            {
+                var arrayIndex = Expression.ArrayIndex(Expression.Constant(deserialize), i);
+                return Expression.Invoke(arrayIndex, r);
+            };
+
             DeserializerTransform<R> transform;
             if (factory != null)
             {
                 Debug.Assert(factory2 == null);
+                
 
                 transform = new DeserializerTransform<R>(
-                    (r, i) => deserialize[i](r),
+                    deferredDeserialize,
                     inlineNested,
                     (t1, t2) => factory.CreateObject(t1, t2),
                     (t1, t2, count) => factory.CreateContainer(t1, t2, count));
@@ -189,7 +197,7 @@ namespace Bond
             else
             {
                 transform = new DeserializerTransform<R>(
-                    (r, i) => deserialize[i](r),
+                    deferredDeserialize,
                     factory2,
                     inlineNested);
             }

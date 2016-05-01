@@ -130,7 +130,6 @@ namespace Bond
                 return Expression.Invoke(arrayIndex, o);
             };
 
-
             Expressions = Generate(type, new DeserializerTransform<object>(deferredDeserialize, factory), parser);
 
             clone = Expressions.Select(lambda => lambda.Compile()).ToArray();
@@ -147,7 +146,6 @@ namespace Bond
             return (T)clone[0](source);
         }
 
-        
         internal static IEnumerable<Expression<Func<object, object>>> Generate(Type type, DeserializerTransform<object> transform, IParser parser)
         {
             parser = parser ?? new ObjectParser(typeof(SourceT));

@@ -132,7 +132,7 @@ namespace Bond.Expressions
                 }
                 else
                 {
-                    var defaultValueExpression = schemaField.GetDefaultValueExpression(typeAlias);
+                    var defaultValueExpression = schemaField.GetDefaultValueExpression(typeAlias, fieldValue.Type);
                     
                     cannotOmit = Expression.NotEqual(fieldValue, defaultValueExpression);
                 }

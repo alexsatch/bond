@@ -901,7 +901,7 @@ namespace Bond
             return schemaType;
         }
 
-        internal static Expression GetDefaultValueExpression(this ISchemaField schemaField, TypeAlias typeAlias)
+        internal static Expression GetDefaultValueExpression(this ISchemaField schemaField, TypeAlias typeAlias, Type expectedType)
         {
             var defaultValue = schemaField.GetDefaultValue();
             var fieldSchemaType = schemaField.GetSchemaType();
@@ -909,7 +909,7 @@ namespace Bond
             if (defaultValue == null)
             {
                 if (!fieldSchemaType.IsBondNullable())
-                    throw new NotImplementedException();
+                    throw new ArgumentException("Default value is null where not supported");
             }
             else
             {
@@ -953,7 +953,12 @@ namespace Bond
                 }
             }
 
-            return Expression.Constant(defaultValue, schemaField.MemberType);
+            if (expectedType == typeof(ArraySegment<byte>))
+            {
+                return Expression.Default(expectedType);
+            }
+
+            return Expression.Constant(defaultValue, expectedType);
         }
 
         private static Expression GetAliasedExpression(ISchemaField schemaField, TypeAlias typeAlias, object defaultValue)

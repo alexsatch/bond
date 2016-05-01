@@ -6,31 +6,49 @@
     using System.Linq.Expressions;
     using System.Reflection;
     using System.Reflection.Emit;
+    using System.Text;
+
     using Bond.Expressions;
 
-    public static class PrecompiledClonerBuilder
+    public class ClonerExpressionFactory<TSource>
     {
-        internal static IEnumerable<Expression> Build<T>(Func<Expression, Expression, Expression> deferredDeserialize)
+        private readonly Type type;
+        private readonly IParser parser;
+        private readonly Factory factory;
+        private readonly bool inlineNested;
+
+        public ClonerExpressionFactory(Type type, IParser parser, Factory factory, bool inlineNested)
         {
-            return Cloner<T>.Generate(typeof(T), new DeserializerTransform<object>(deferredDeserialize, false), null);
+            this.type = type;
+            this.parser = parser;
+            this.factory = factory;
+            this.inlineNested = inlineNested;
         }
 
-        public static TypeBuilder PrecompileCloner<TSource>(ModuleBuilder moduleBuilder)
+        public virtual IEnumerable<Expression> BuildExpressions(Func<Expression, Expression, Expression> deferredDeserialize)
         {
-            var facadeBuilder = moduleBuilder.DefineType("PrecompiledBond." + typeof(TSource).Name + "ClonerHelper", TypeAttributes.NotPublic | TypeAttributes.Class | TypeAttributes.Sealed | TypeAttributes.Abstract);
-            var fieldBuilder = facadeBuilder.DefineField("CloneOp", typeof(Func<object, object>[]), FieldAttributes.Static | FieldAttributes.Assembly | FieldAttributes.InitOnly);
-            var facadeType = facadeBuilder.CreateType();
-            var fieldInfo = facadeType.GetField("CloneOp", BindingFlags.Static | BindingFlags.NonPublic);
+            return Cloner<TSource>.Generate(type, new DeserializerTransform<object>(deferredDeserialize, factory, this.inlineNested), parser);
+        }
+    }
 
-            var typeBuilder = moduleBuilder.DefineType("PrecompiledBond." + typeof(TSource).Name + "Cloner", TypeAttributes.Public | TypeAttributes.Class | TypeAttributes.Sealed | TypeAttributes.Abstract);
+    public class PrecompiledCloner
+    {
+        private readonly Type clonerCache;
+        private readonly Func<Expression, Expression, Expression> deferredDeserialize;
+
+        public PrecompiledCloner(Type clonerCache, ClonerExpressionFactory clonerExpressionFactory)
+        {
+            this.clonerCache = clonerCache;
+        }
+
+        public TypeBuilder CompileToModule(ModuleBuilder moduleBuilder, Type sourceType, Type type)
+        {
+            var fieldInfo = clonerCache.MakeGenericType(sourceType, type).GetField("clone", BindingFlags.Static | BindingFlags.NonPublic);
+            Func<Expression, Expression, Expression> deferredDeserialize = (o, i) => Expression.Invoke(Expression.ArrayIndex(Expression.Field(null, fieldInfo), i), o);
             
-            Func<Expression, Expression, Expression> deferredDeserialize = (o, i) =>
-            {
-                var arrayIndex = Expression.ArrayIndex(Expression.Field(null, fieldInfo), i);
-                return Expression.Invoke(arrayIndex, o);
-            };
-
-            var expressions = Build<TSource>(deferredDeserialize);
+            var typeBuilder = moduleBuilder.DefineType("Bond.Precompiled." + EscapeTypeName(typeof(TSource)) + "Cloner.To" + EscapeTypeName(type), TypeAttributes.Public | TypeAttributes.Class | TypeAttributes.Sealed | TypeAttributes.Abstract);
+            
+            var expressions = BuildExpressions();
             var methods = BuildMethods(typeBuilder, expressions.ToArray()).ToArray();
 
             var staticCtor = typeBuilder.DefineConstructor(MethodAttributes.Private | MethodAttributes.Static, CallingConventions.Standard, Type.EmptyTypes);
@@ -53,6 +71,28 @@
             generator.Emit(OpCodes.Ret);
 
             return typeBuilder;
+        }
+
+        private static string EscapeTypeName(Type type)
+        {
+            var sb = new StringBuilder();
+            foreach (var ch in type.FullName)
+            {
+                switch (ch)
+                {
+                case '.':
+                case '<':
+                case '>':
+                case '`':
+                case ',':
+                    sb.Append("_");
+                    break;
+                default:
+                    sb.Append(ch);
+                    break;
+                }
+            }
+            return sb.ToString();
         }
 
         private static MethodBuilder[] BuildMethods(TypeBuilder typeBuilder, Expression[] expressions)

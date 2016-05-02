@@ -40,7 +40,9 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Cloner.Builder.cs" />
+    <Compile Include="ClonerExpressionFactory.cs" />
+    <Compile Include="PrecompiledSerializer.cs" />
+    <Compile Include="PrecompiledCloner.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

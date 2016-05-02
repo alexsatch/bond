@@ -905,51 +905,46 @@ namespace Bond
         {
             var defaultValue = schemaField.GetDefaultValue();
             var fieldSchemaType = schemaField.GetSchemaType();
-            
-            if (defaultValue == null)
-            {
-                if (!fieldSchemaType.IsBondNullable())
-                    throw new ArgumentException("Default value is null where not supported");
-            }
-            else
+
+            if (defaultValue != null)
             {
                 var defaultValueType = defaultValue.GetType();
                 var alias = defaultValueType != fieldSchemaType;
 
                 switch (fieldSchemaType.GetBondDataType())
                 {
-                    case BondDataType.BT_BOOL:
-                        return Expression.Constant(defaultValue, defaultValueType);
+                case BondDataType.BT_BOOL:
+                    return Expression.Constant(defaultValue, defaultValueType);
 
-                    case BondDataType.BT_UINT8:
-                    case BondDataType.BT_UINT16:
-                    case BondDataType.BT_UINT32:
-                    case BondDataType.BT_UINT64:
-                        return alias
-                            ? GetAliasedExpression(schemaField, typeAlias, defaultValue)
-                            : Expression.Constant(defaultValue, defaultValueType);
+                case BondDataType.BT_UINT8:
+                case BondDataType.BT_UINT16:
+                case BondDataType.BT_UINT32:
+                case BondDataType.BT_UINT64:
+                    return alias
+                               ? GetAliasedExpression(schemaField, typeAlias, defaultValue)
+                               : Expression.Constant(defaultValue, defaultValueType);
 
-                    case BondDataType.BT_INT8:
-                    case BondDataType.BT_INT16:
-                    case BondDataType.BT_INT32:
-                    case BondDataType.BT_INT64:
-                        return alias
-                            ? GetAliasedExpression(schemaField, typeAlias, defaultValue)
-                            : Expression.Constant(defaultValue, defaultValueType);
+                case BondDataType.BT_INT8:
+                case BondDataType.BT_INT16:
+                case BondDataType.BT_INT32:
+                case BondDataType.BT_INT64:
+                    return alias
+                               ? GetAliasedExpression(schemaField, typeAlias, defaultValue)
+                               : Expression.Constant(defaultValue, defaultValueType);
 
-                    case BondDataType.BT_FLOAT:
-                    case BondDataType.BT_DOUBLE:
-                        return alias
-                            ? GetAliasedExpression(schemaField, typeAlias, defaultValue)
-                            : Expression.Constant(defaultValue, defaultValueType);
+                case BondDataType.BT_FLOAT:
+                case BondDataType.BT_DOUBLE:
+                    return alias
+                               ? GetAliasedExpression(schemaField, typeAlias, defaultValue)
+                               : Expression.Constant(defaultValue, defaultValueType);
 
-                    case BondDataType.BT_STRING:
-                        return alias
-                            ? GetAliasedExpression(schemaField, typeAlias, defaultValue)
-                            : Expression.Constant(defaultValue, defaultValueType);
+                case BondDataType.BT_STRING:
+                    return alias
+                               ? GetAliasedExpression(schemaField, typeAlias, defaultValue)
+                               : Expression.Constant(defaultValue, defaultValueType);
 
-                    case BondDataType.BT_WSTRING:
-                        return Expression.Constant(defaultValue, defaultValueType);
+                case BondDataType.BT_WSTRING:
+                    return Expression.Constant(defaultValue, defaultValueType);
                 }
             }
 

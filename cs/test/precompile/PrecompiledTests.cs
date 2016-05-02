@@ -3,7 +3,10 @@ namespace UnitTest
     using System;
     using System.Reflection;
     using System.Reflection.Emit;
-    using Bond.Precompile;
+
+    using Bond;
+    using Bond.Precompiled;
+
     using NUnit.Framework;
 
     [TestFixture]
@@ -14,20 +17,19 @@ namespace UnitTest
         {
             var assemblyBuilder = AppDomain.CurrentDomain.DefineDynamicAssembly(new AssemblyName("DataSchemas.PrecompiledBond"), AssemblyBuilderAccess.RunAndSave);
             var moduleBuilder = assemblyBuilder.DefineDynamicModule("DataSchemas.PrecompiledBond.dll");
-
-            var clonerCache = moduleBuilder.DefineType("PrecompiledBond.ClonerCache", TypeAttributes.NotPublic | TypeAttributes.Class | TypeAttributes.Sealed | TypeAttributes.Abstract);
-            var genericParameters = clonerCache.DefineGenericParameters("TSource", "T");
-            var fieldBuilder = clonerCache.DefineField("clone", typeof(Func<object, object>[]), FieldAttributes.Static | FieldAttributes.Assembly | FieldAttributes.InitOnly);
             
-            var precompiledCloner = new PrecompiledCloner<FieldOfStructWithAliases>(typeof(FieldOfStructWithAliases), clonerCache.CreateType());
+            var clonerCache = PrecompiledCloner.DefineCloneCacheType(moduleBuilder);
 
-            var type = precompiledCloner.CompileToModule(moduleBuilder).CreateType();
-            
-            var clone = type.GetMethod("Clone", new[] { typeof(object)});
-            var genericsResult = (FieldOfStructWithAliases)clone.Invoke(null, new object[] { new FieldOfStructWithAliases() });
+            var precompiledCloner = new PrecompiledCloner(moduleBuilder, clonerCache);
+            foreach (var type in typeof(FieldOfStructWithAliases).Assembly.GetTypes())
+            {
+                if (!type.IsGenericType && type.IsBondStruct() && type.Namespace == "UnitTest" && !type.IsNested)
+                {
+                    precompiledCloner.CompileToModule(type).CreateType();
+                }
+            }
 
             assemblyBuilder.Save("DataSchemas.PrecompiledBond.dll");
         }
-
     }
 }

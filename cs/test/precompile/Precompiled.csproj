@@ -49,6 +49,10 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\src\core\Bond.csproj">
+      <Project>{43CBBA9B-C4BC-4E64-8733-7B72562D2E91}</Project>
+      <Name>Bond</Name>
+    </ProjectReference>
     <ProjectReference Include="..\..\src\precompile\Precompiled.csproj">
       <Project>{33278BA8-4B6A-4891-9768-7E9236FF3026}</Project>
       <Name>Precompiled</Name>

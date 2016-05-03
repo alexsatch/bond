@@ -17,7 +17,7 @@ namespace Bond.Expressions
         readonly bool inlineNested;
         TypeAlias typeAlias;
         
-        readonly Func<Expression, Expression, Expression> deferredDeserialize; // (R, int) => object
+        readonly Expression<Func<R, int, object>> deferredDeserialize; // (R, int) => object
         readonly List<Expression<Func<R, object>>> deserializeFuncs = new List<Expression<Func<R, object>>>();
         readonly Dictionary<Type, int> deserializeIndex = new Dictionary<Type, int>();
         readonly Stack<Type> inProgress = new Stack<Type>();
@@ -33,7 +33,7 @@ namespace Bond.Expressions
             Reflection.MethodInfoOf((byte[] a) => Buffer.BlockCopy(a, default(int), a, default(int), default(int)));
 
         public DeserializerTransform(
-            Func<Expression, Expression, Expression> deferredDeserialize,
+            Expression<Func<R, int, object>> deferredDeserialize,
             Factory factory,
             bool inlineNested = true)
         {
@@ -48,7 +48,7 @@ namespace Bond.Expressions
         }
 
         public DeserializerTransform(
-            Func<Expression, Expression, Expression> deferredDeserialize,
+            Expression<Func<R, int, object>> deferredDeserialize,
             bool inlineNested = true,
             Expression<Func<Type, Type, object>> createObject = null,
             Expression<Func<Type, Type, int, object>> createContainer = null)
@@ -128,10 +128,7 @@ namespace Bond.Expressions
                 if (var == null)
                     body = null;
                 else
-                    body = Expression.Assign(var,
-                        Expression.Convert(
-                            deferredDeserialize(parser.ReaderValue, Expression.Constant(index)),
-                            objectType));
+                    body = Expression.Assign(var, Expression.Convert(deferredDeserialize.GetBodyWithAppliedArguments(parser.ReaderValue, Expression.Constant(index)), objectType));
             }
 
             inProgress.Pop();

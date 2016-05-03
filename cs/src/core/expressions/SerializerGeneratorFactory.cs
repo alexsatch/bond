@@ -59,7 +59,7 @@ namespace Bond.Expressions
                     throw new InvalidOperationException(
                         string.Format(
                             CultureInfo.InvariantCulture,
-                            "Constructor {0}(Expression<Action<R, W, int>>, {1}) not defined.",
+                            "Constructor {0}(Expression<DeferredSerialize>, {1}) not defined.",
                             generator, typeof(S)));
                 }
 

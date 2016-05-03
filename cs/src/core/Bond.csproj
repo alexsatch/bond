@@ -23,6 +23,7 @@
     <Compile Include="expressions\ControlExpression.cs" />
     <Compile Include="expressions\DataExpression.cs" />
     <Compile Include="expressions\DeserializerTransform.cs" />
+    <Compile Include="expressions\ExpressionExtensions.cs" />
     <Compile Include="expressions\IParser.cs" />
     <Compile Include="expressions\ISerializerGenerator.cs" />
     <Compile Include="expressions\ObjectParser.cs" />

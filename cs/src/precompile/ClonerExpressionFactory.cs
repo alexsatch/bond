@@ -21,7 +21,7 @@
             this.inlineNested = inlineNested;
         }
 
-        public virtual IEnumerable<Expression<Func<object, object>>> BuildExpressions(Func<Expression, Expression, Expression> deferredDeserialize)
+        public virtual IEnumerable<Expression<Func<object, object>>> BuildExpressions(Expression<Func<object, int, object>>  deferredDeserialize)
         {
             var transform = new DeserializerTransform<object>(deferredDeserialize, this.factory, this.inlineNested);
             return transform.Generate(this.parser, this.type);

@@ -6,6 +6,7 @@ namespace Bond.Precompiled
     using System.Reflection;
     using System.Reflection.Emit;
     using System.Text;
+    using Bond.Expressions;
 
     public class PrecompiledCloner
     {
@@ -20,14 +21,19 @@ namespace Bond.Precompiled
             this.clonerExpressionFactory = clonerExpressionFactory ?? ((sourceType, type) => new ClonerExpressionFactory(sourceType, type, null, null, false));
         }
 
+        private static readonly Func<object, object>[] clone = new Func<object, object>[0];
+        private static readonly FieldInfo oldField = typeof(PrecompiledCloner).GetField("clone", BindingFlags.Static | BindingFlags.NonPublic);
+
         public TypeBuilder CompileToModule(Type sourceType, Type type = null)
         {
             type = type ?? sourceType;
             var fieldInfo = this.clonerCache.MakeGenericType(sourceType, type).GetField("clone", BindingFlags.Static | BindingFlags.NonPublic);
-            Func<Expression, Expression, Expression> deferredDeserialize = (o, i) => Expression.Invoke(Expression.ArrayIndex(Expression.Field(null, fieldInfo), i), Expression.Convert(o, typeof(object)));
-        
+
+            Expression<Func<object, int, object>> deferredDeserialize = (o, i) => clone[i](0);
+            var rewritten = (Expression<Func<object, int, object>>) deferredDeserialize.RewriteSpecificField(PrecompiledCloner.oldField, fieldInfo);
+
             var typeBuilder = this.moduleBuilder.DefineType("Bond.Precompiled." + EscapeTypeName(type) + "Cloner.From" + EscapeTypeName(sourceType), TypeAttributes.Public | TypeAttributes.Class | TypeAttributes.Sealed | TypeAttributes.Abstract);
-            var expressions = this.clonerExpressionFactory(sourceType, type).BuildExpressions(deferredDeserialize);
+            var expressions = this.clonerExpressionFactory(sourceType, type).BuildExpressions(rewritten);
             var methods = BuildMethods(typeBuilder, expressions.ToArray()).ToArray();
 
             BuildStaticCtor(typeBuilder, fieldInfo, methods);
@@ -43,7 +49,6 @@ namespace Bond.Precompiled
             method.DefineParameter(1, ParameterAttributes.None, "src");
             
             var generator = method.GetILGenerator();
-
             // the following is equivalent to:
             // (TResult) clone[0](src);
 
@@ -55,13 +60,6 @@ namespace Bond.Precompiled
             generator.Emit(OpCodes.Castclass, type);
             generator.Emit(OpCodes.Ret);
         }
-
-        public static MethodInfo Clone(FieldInfo info)
-        {
-            return (MethodInfo)clone[0](info);
-        }
-
-        private static Func<object, object>[] clone = null;
 
         private static void BuildStaticCtor(TypeBuilder typeBuilder, FieldInfo fieldInfo, MethodBuilder[] methods)
         {

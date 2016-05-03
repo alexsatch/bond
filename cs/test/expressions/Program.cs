@@ -81,13 +81,9 @@
         public DeserializerDebugView(Type type)
         {
             var parser = ParserFactory<R>.Create(type);
-            Func<Expression, Expression, Expression> deferredDeserialize = (r, i) =>
-                {
-                    var arrayIndex = Expression.ArrayIndex(Expression.Constant(deserialize, typeof(Func<R, object>[])), i);
-                    return Expression.Invoke(arrayIndex, r);
-                };
+
             var expressions = new DeserializerTransform<R>(
-                deferredDeserialize)
+                (r, i) => deserialize[i](r))
                 .Generate(parser, type);
             debugView = DebugViewHelper.ToString(expressions);
         }

@@ -79,11 +79,7 @@ namespace Bond.Expressions
                         writer);
                 }
 
-                body = Expression.Invoke(
-                    deferredSerialize,
-                    PrunedExpression.Convert(parser.ReaderValue, parser.ReaderParam.Type),
-                    writer,
-                    Expression.Constant(index));
+                body = deferredSerialize.GetBodyWithAppliedArguments(PrunedExpression.Convert(parser.ReaderValue, parser.ReaderParam.Type), writer, Expression.Constant(index));
             }
 
             inProgress.Pop();
@@ -105,7 +101,7 @@ namespace Bond.Expressions
             typeof (IUntaggedProtocolReader).IsAssignableFrom(typeof (W).GetAttribute<ReaderAttribute>().ReaderType);
         static readonly bool binaryWriter = untaggedWriter
             || typeof(ITaggedProtocolReader).IsAssignableFrom(typeof(W).GetAttribute<ReaderAttribute>().ReaderType);
-        
+
         public SerializerTransform(Expression<Action<R, W, int>> deferredSerialize, RuntimeSchema schema, bool inlineNested = true)
             : base(deferredSerialize)
         {

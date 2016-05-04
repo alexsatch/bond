@@ -36,7 +36,7 @@ namespace Bond
     /// <typeparam name="SourceT">type representing a Bond schema</typeparam>
     public class Cloner<SourceT>
     {
-        readonly Func<object, object>[] clone;
+        readonly Func<object, object> entryPoint;
 
         /// <summary>
         /// Create a cloner that makes clones of the same type <typeparamref name="SourceT"/> as source objects.
@@ -60,9 +60,9 @@ namespace Bond
         /// <param name="parser">Custom <see cref="IParser"/> instance</param>
         public Cloner(Type type, IParser parser)
         {
-            clone = Generate(type,
-                             new DeserializerTransform<object>((o, i) => clone[i](o)),
-                             parser);
+            entryPoint = Generate(type,
+                new DeserializerTransform<object>(new DeserializerIndex<object>()),
+                parser);
         }
 
         /// <summary>
@@ -82,9 +82,9 @@ namespace Bond
         /// <param name="factory">factory implementing <see cref="IFactory"/> interface</param>
         public Cloner(Type type, IParser parser, IFactory factory)
         {
-            clone = Generate(type,
+            entryPoint = Generate(type,
                              new DeserializerTransform<object>(
-                                 (o, i) => clone[i](o),
+                                 new DeserializerIndex<object>(),
                                  true,
                                  (t1, t2) => factory.CreateObject(t1, t2),
                                  (t1, t2, count) => factory.CreateContainer(t1, t2, count)),
@@ -108,9 +108,26 @@ namespace Bond
         /// <param name="factory">factory delegate returning expressions to create objects</param>
         public Cloner(Type type, IParser parser, Factory factory)
         {
-            clone = Generate(type,
+            entryPoint = Generate(type,
                              new DeserializerTransform<object>(
-                                 (o, i) => clone[i](o),
+                                 new DeserializerIndex<object>(),
+                                 factory),
+                             parser);
+        }
+
+        /// <summary>
+        /// Create a cloner that uses specified factory and makes clones of the specified type.
+        /// </summary>
+        /// <param name="type">type of clone object, may be different than source object</param>
+        /// <param name="parser">Custom <see cref="IParser"/> instance</param>
+        /// <param name="factory">factory delegate returning expressions to create objects</param>
+        /// <param name="index"></param>
+        public Cloner(Type type, IParser parser, Factory factory, IDeserializerIndex<object> index )
+        {
+            index = index ?? new DeserializerIndex<object>();
+            entryPoint = Generate(type,
+                             new DeserializerTransform<object>(
+                                 index,
                                  factory),
                              parser);
         }
@@ -123,14 +140,14 @@ namespace Bond
         /// <returns>clone of the source object projected on type <typeparamref name="T"/></returns>
         public T Clone<T>(SourceT source)
         {
-            return (T)clone[0](source);
+            return (T)entryPoint(source);
         }
 
-        static Func<object, object>[] Generate(Type type, DeserializerTransform<object> transform, IParser parser)
+        static Func<object, object> Generate(Type type, DeserializerTransform<object> transform, IParser parser)
         {
             parser = parser ?? new ObjectParser(typeof(SourceT));
 
-            return transform.Generate(parser, type).Select(lambda => lambda.Compile()).ToArray();
+            return transform.Generate(parser, type);
         }
     }
 }

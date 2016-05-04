@@ -5,6 +5,7 @@ namespace Bond.Expressions
 {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Linq;
     using System.Linq.Expressions;
     using System.Reflection;
@@ -18,8 +19,7 @@ namespace Bond.Expressions
         TypeAlias typeAlias;
 
         readonly Expression<Func<R, int, object>> deferredDeserialize;
-        readonly List<Expression<Func<R, object>>> deserializeFuncs = new List<Expression<Func<R, object>>>();
-        readonly Dictionary<Type, int> deserializeIndex = new Dictionary<Type, int>();
+        readonly IDeserializerIndex<R> deserializeIndex;
         readonly Stack<Type> inProgress = new Stack<Type>();
         static readonly MethodInfo bondedConvert =
             Reflection.GenericMethodInfoOf((IBonded bonded) => bonded.Convert<object>());
@@ -33,12 +33,13 @@ namespace Bond.Expressions
             Reflection.MethodInfoOf((byte[] a) => Buffer.BlockCopy(a, default(int), a, default(int), default(int)));
 
         public DeserializerTransform(
-            Expression<Func<R, int, object>> deferredDeserialize,
+            IDeserializerIndex<R> deserializeIndex,
             Factory factory,
             bool inlineNested = true)
         {
-            this.deferredDeserialize = deferredDeserialize;
             this.inlineNested = inlineNested;
+            this.deserializeIndex = deserializeIndex ?? new DeserializerIndex<R>();
+            this.deferredDeserialize = (o, i) => deserializeIndex.GetFunction(i)(o);
 
             if (factory != null)
             {
@@ -48,13 +49,16 @@ namespace Bond.Expressions
         }
 
         public DeserializerTransform(
-            Expression<Func<R, int, object>> deferredDeserialize,
+            IDeserializerIndex<R> deserializeIndex,
             bool inlineNested = true,
             Expression<Func<Type, Type, object>> createObject = null,
             Expression<Func<Type, Type, int, object>> createContainer = null)
+            
         {
-            this.deferredDeserialize = deferredDeserialize;
+            this.deserializeIndex = new DeserializerIndex<R>();
+            this.deferredDeserialize = (o, i) => deserializeIndex.GetFunction(i)(o);
             this.inlineNested = inlineNested;
+            
 
             if (createObject != null)
             {
@@ -80,17 +84,22 @@ namespace Bond.Expressions
             }
         }
 
-        public IEnumerable<Expression<Func<R, object>>> Generate(IParser parser, Type type)
+        public Func<R, object> Generate(IParser parser, Type type)
         {
             Audit.ArgNotNull(type, "type");
 
             typeAlias = new TypeAlias(type);
-            Deserialize(parser, null, type, type, true);
-            return deserializeFuncs;
+
+            int index;
+            Deserialize(parser, null, type, type, true, out index);
+            Debug.Assert(index >= 0);
+
+            return deserializeIndex.GetFunction(index);
         }
 
-        Expression Deserialize(IParser parser, Expression var, Type objectType, Type schemaType, bool initialize)
+        Expression Deserialize(IParser parser, Expression var, Type objectType, Type schemaType, bool initialize, out int index)
         {
+            index = -1;
             var inline = inlineNested && inProgress.Count != 0 && !inProgress.Contains(schemaType) && var != null;
             Expression body;
 
@@ -110,20 +119,16 @@ namespace Bond.Expressions
             }
             else
             {
-                int index;
-                if (!deserializeIndex.TryGetValue(schemaType, out index))
+                index = deserializeIndex.SaveExpression(schemaType, () =>
                 {
-                    index = deserializeFuncs.Count;
-                    deserializeIndex[schemaType] = index;
-                    deserializeFuncs.Add(null);
                     var result = Expression.Variable(objectType, objectType.Name);
-                    deserializeFuncs[index] = Expression.Lambda<Func<R, object>>(
+                    return Expression.Lambda<Func<R, object>>(
                         Expression.Block(
-                            new[] { result },
+                            new[] {result},
                             Struct(parser, result, schemaType, true),
                             Expression.Convert(result, typeof(object))),
                         parser.ReaderParam);
-                }
+                });
 
                 if (var == null)
                     body = null;
@@ -440,7 +445,9 @@ namespace Bond.Expressions
                     var deserialize = bondedDeserialize.MakeGenericMethod(schemaType);
                     return parser.Bonded(value => Expression.Assign(var, Expression.Call(value, deserialize)));
                 }
-                return Deserialize(parser, var, var.Type, schemaType, initialize);
+
+                int unused;
+                return Deserialize(parser, var, var.Type, schemaType, initialize, out unused);
             }
 
             if (schemaType.IsBondMap())
@@ -478,4 +485,5 @@ namespace Bond.Expressions
             return ctor != null ? Expression.New(ctor, arguments) : Expression.New(schemaType);
         }
     }
+
 }

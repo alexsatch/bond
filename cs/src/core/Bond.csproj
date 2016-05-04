@@ -20,6 +20,7 @@
     <Compile Include="Clone.cs" />
     <Compile Include="Comparer.cs" />
     <Compile Include="Deserializer.cs" />
+    <Compile Include="DeserializerIndex.cs" />
     <Compile Include="expressions\ControlExpression.cs" />
     <Compile Include="expressions\DataExpression.cs" />
     <Compile Include="expressions\DeserializerTransform.cs" />

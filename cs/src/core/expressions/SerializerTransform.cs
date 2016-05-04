@@ -13,6 +13,7 @@ namespace Bond.Expressions
     public abstract class SerializerGenerator<R, W> : ISerializerGenerator<R, W>
     {
         protected delegate Expression Serialize(IParser parser);
+
         readonly Expression<Action<R, W, int>> deferredSerialize;
         readonly List<Expression<Action<R, W>>> serializeActions = new List<Expression<Action<R, W>>>();
         readonly Dictionary<KeyValuePair<IParser, Serialize>, int> serializeIndex =
@@ -26,6 +27,7 @@ namespace Bond.Expressions
         }
 
         public abstract IEnumerable<Expression<Action<R, W>>> Generate(IParser parser);
+
 
         protected IEnumerable<Expression<Action<R, W>>> SerializeActions { get { return serializeActions; } }
 
@@ -49,10 +51,11 @@ namespace Bond.Expressions
         {
             var key = new KeyValuePair<IParser, Serialize>(parser, serialize);
             inline = inline && inProgress.Count != 0 && !inProgress.Contains(key);
-            Expression body;
 
             inProgress.Push(key);
 
+
+            Expression body;
             if (inline)
             {
                 body = serialize(parser);
@@ -60,24 +63,14 @@ namespace Bond.Expressions
                 if (parser.ReaderParam != parser.ReaderValue && parser.ReaderValue.Type.IsBondStruct())
                 {
                     body = Expression.Block(
-                        new[] { parser.ReaderParam },
+                        new[] {parser.ReaderParam},
                         Expression.Assign(parser.ReaderParam, Expression.Convert(parser.ReaderValue, parser.ReaderParam.Type)),
                         body);
                 }
             }
             else
             {
-                int index;
-                if (!serializeIndex.TryGetValue(key, out index))
-                {
-                    index = serializeActions.Count;
-                    serializeIndex[key] = index;
-                    serializeActions.Add(null);
-                    serializeActions[index] = Expression.Lambda<Action<R, W>>(
-                        serialize(parser),
-                        parser.ReaderParam,
-                        writer);
-                }
+                var index = GetFromPool(serialize, parser, writer);
 
                 body = Expression.Invoke(
                     deferredSerialize,
@@ -89,11 +82,29 @@ namespace Bond.Expressions
             inProgress.Pop();
             return body;
         }
+
+        protected virtual int GetFromPool(Serialize serialize, IParser parser, ParameterExpression writer)
+        {
+            var key = new KeyValuePair<IParser, Serialize>(parser, serialize);
+
+            int index;
+            if (!serializeIndex.TryGetValue(key, out index))
+            {
+                index = serializeActions.Count;
+                serializeIndex[key] = index;
+                serializeActions.Add(null);
+                serializeActions[index] = Expression.Lambda<Action<R, W>>(
+                    serialize(parser),
+                    parser.ReaderParam,
+                    writer);
+            }
+            return index;
+        }
     }
 
     internal class SerializerTransform<R, W> : SerializerGenerator<R, W>
     {
-        delegate Expression SerializeWithSchema(IParser parser, RuntimeSchema schema);
+        protected delegate Expression SerializeWithSchema(IParser parser, RuntimeSchema schema);
 
         static readonly Expression noMetadata = Expression.Constant(null, typeof(Metadata));
         readonly RuntimeSchema runtimeSchema;
@@ -139,11 +150,8 @@ namespace Bond.Expressions
         {
             Debug.Assert(schema.HasValue);
 
-            Serialize serialize;
-            if (!serializeDelegates.TryGetValue(schema, out serialize))
-            {
-                serialize = serializeDelegates[schema] = p => serializeWithSchema(p, schema);
-            }
+            Serialize serialize = LookupSerialize(serializeWithSchema, parser, schema);
+            
             // Transcoding from tagged protocol with runtime schema generates enormous expression tree
             // and for large schemas JIT fails to compile resulting lambda (InvalidProgramException).
             // As a workaround we don't inline nested serialize expressions in this case.
@@ -152,6 +160,17 @@ namespace Bond.Expressions
             inline = inline && (this.inlineNested || !schema.IsStruct);
 
             return GenerateSerialize(serialize, parser, writer.Param, inline);
+        }
+
+        protected virtual Serialize LookupSerialize(SerializeWithSchema serializeWithSchema, IParser parser, RuntimeSchema schema)
+        {
+            Serialize serialize;
+            if (!serializeDelegates.TryGetValue(schema, out serialize))
+            {
+                serialize = serializeDelegates[schema] = p => serializeWithSchema(p, schema);
+            }
+
+            return serialize;
         }
 
         Expression Struct(IParser parser)
